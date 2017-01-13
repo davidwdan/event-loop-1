@@ -103,6 +103,21 @@ final class Loop
     }
 
     /**
+     * Resets the driver (sets the internal driver instance to null), forcing the creation of a new driver instance.
+     * This method can only be called if the loop is not running.
+     *
+     * @throws \RuntimeException If the loop is running.
+     */
+    public static function resetDriver()
+    {
+        if (self::$level > 0) {
+            throw new \RuntimeException("Resetting the driver while running isn't allowed!");
+        }
+
+        self::$driver = null;
+    }
+
+    /**
      * Retrieve the event loop driver that is in scope.
      *
      * @return Driver
