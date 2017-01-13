@@ -47,9 +47,6 @@ final class Loop
         }
 
         self::$factory = $factory;
-
-        // reset it here, it will be actually instantiated inside execute() or get()
-        self::$driver = null;
     }
 
     /**
