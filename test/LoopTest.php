@@ -6,10 +6,6 @@ use AsyncInterop\Loop;
 
 class LoopTest extends \PHPUnit_Framework_TestCase
 {
-    protected function setUp() {
-        Loop::setFactory(null);
-    }
-
     /**
      * @test
      * @expectedException \RuntimeException
