@@ -25,11 +25,6 @@ final class Loop
     private static $driver = null;
 
     /**
-     * @var int
-     */
-    private static $level = 0;
-
-    /**
      * Set the factory to be used to create a default drivers.
      *
      * Setting a factory is only allowed as long as no loop is currently running. Passing null will reset the
@@ -38,18 +33,15 @@ final class Loop
      * The factory will be invoked if none is passed to `Loop::execute`. A default driver will be created to
      * support synchronous waits in traditional applications.
      *
-     * @param DriverFactory|null $factory New factory to replace the previous one.
+     * @param DriverFactory $factory New driver factory.
      */
-    public static function setFactory(DriverFactory $factory = null)
+    public static function setFactory(DriverFactory $factory)
     {
-        if (self::$level > 0) {
-            throw new \RuntimeException("Setting a new factory while running isn't allowed!");
+        if (self::$driver) {
+            throw new \RuntimeException("Setting a factory after the driver has been created, isn't allowed");
         }
 
         self::$factory = $factory;
-
-        // reset it here, it will be actually instantiated inside execute() or get()
-        self::$driver = null;
     }
 
     /**
@@ -68,18 +60,28 @@ final class Loop
      */
     public static function execute(callable $callback, Driver $driver = null)
     {
-        $previousDriver = self::$driver;
-
-        self::$driver = $driver ?: self::createDriver();
-        self::$level++;
-
-        try {
-            self::$driver->defer($callback);
-            self::$driver->run();
-        } finally {
-            self::$driver = $previousDriver;
-            self::$level--;
+        if ($driver && self::$driver) {
+            throw new \RuntimeException("Setting a new driver after the driver has been created, isn't allowed");
         }
+
+        self::$driver = $driver ?: static::get();
+
+        self::$driver->defer($callback);
+        self::$driver->run();
+    }
+
+    /**
+     * Retrieve the event loop driver that is in scope.
+     *
+     * @return Driver
+     */
+    public static function get()
+    {
+        if (self::$driver) {
+            return self::$driver;
+        }
+
+        return self::$driver = self::createDriver();
     }
 
     /**
@@ -103,20 +105,6 @@ final class Loop
         }
 
         return $driver;
-    }
-
-    /**
-     * Retrieve the event loop driver that is in scope.
-     *
-     * @return Driver
-     */
-    public static function get()
-    {
-        if (self::$driver) {
-            return self::$driver;
-        }
-
-        return self::$driver = self::createDriver();
     }
 
     /**
@@ -157,7 +145,7 @@ final class Loop
      * The delay is a minimum and approximate, accuracy is not guaranteed. Order of calls MUST be determined by which
      * timers expire first, but timers with the same expiration time MAY be executed in any order.
      *
-     * @param int $delay The amount of time, in milliseconds, to delay the execution for.
+     * @param int $time The amount of time, in milliseconds, to delay the execution for.
      * @param callable(string $watcherId, mixed $data) $callback The callback to delay. The `$watcherId` will be
      *     invalidated before the callback call.
      * @param mixed $data Arbitrary data given to the callback function as the `$data` parameter.
@@ -423,8 +411,21 @@ final class Loop
     }
 
     /**
-     * Disable construction as this is a static class.
+     * Start the event loop.
+     *
+     * The loop MUST continue to run until it is either stopped explicitly, no referenced watchers exist anymore, or an
+     * exception is thrown that cannot be handled. Exceptions that cannot be handled are exceptions thrown from an
+     * error handler or exceptions that would be passed to an error handler but none exists to handle them.
+     *
+     * @return void
+     *
      */
+    public static function run()
+    {
+        $driver = self::$driver ?: self::get();
+        $driver->run();
+    }
+
     private function __construct()
     {
         // intentionally left blank
